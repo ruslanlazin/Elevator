@@ -12,6 +12,7 @@
                 if (objElevator.currentFloor() >= Math.max.apply(null, objElevator.destinationQueue)) {
                     objElevator.goingUpIndicator(false);
                     objElevator.goingDownIndicator(true);
+                    objElevator.goToFloor(0);
                 }
             }
             if (objElevator.currentFloor() === 0) {
@@ -21,88 +22,93 @@
             }
         }
 
-        function SortQueue() {
-            if (this.goingUpIndicator()) {
-                this.destinationQueue.sort(function (a, b) {
+        function sortQueue(objElevator) {
+            if (objElevator.goingUpIndicator()) {
+                objElevator.destinationQueue.sort(function (a, b) {
                     return a - b;
                 });
             } else {
-                this.destinationQueue.sort(function (a, b) {
+                objElevator.destinationQueue.sort(function (a, b) {
                     return b - a;
                 });
             }
-            this.checkDestinationQueue();
+            objElevator.checkDestinationQueue();
         }
 
         function callFreeElevator(floorNum) {
-            for (elevatorNum = 0; elevatorNum < elevators.length; elevatorNum++) {
-                if (elevators[elevatorNum].destinationQueue.length === 0) {
-                    elevators[elevatorNum].goToFloor(floorNum);
+            for (i = 0; i < elevators.length; i++) {
+                if (elevators[i].destinationQueue.length === 0) {
+                    elevators[i].goToFloor(floorNum);
                     isPressedDown[floorNum] = false;
                     break;
                 }
             }
         }
 
-        for (elavatorNumber = 0; elavatorNumber < elevators.length; elavatorNumber++) {
+        function findHighestPaxAndGo(objElevator){
+            for (floorNum = floors.length - 1; floorNum >= 0; floorNum--) {
+                if (isPressedUp[floorNum] || isPressedDown[floorNum]) {
+                    objElevator.goToFloor(floorNum);
+                    isPressedUp[floorNum] = false;
+                    isPressedDown[floorNum] = false;
+                    break;
+                }
+            }
+        }
 
-            elevators[elavatorNumber].goingUpIndicator(true);
-            elevators[elavatorNumber].goingDownIndicator(false);
+
+        elevators.forEach(function (elevator) {
+
+            elevator.goingUpIndicator(true);
+            elevator.goingDownIndicator(false);
 
             // Whenever the elevator is idle
-            elevators[elavatorNumber].on("idle", function () {
-                for (floorNum = floors.length - 1; floorNum >= 0; floorNum--) {
-                    if (isPressedUp[floorNum] || isPressedDown[floorNum]) {
-                        this.goToFloor(floorNum);
-                        isPressedUp[floorNum] = false;
-                        isPressedDown[floorNum] = false;
-                        break;
-                    }
-                }
+            elevator.on("idle", function () {
+              findHighestPaxAndGo(this);
             });
 
-            elevators[elavatorNumber].on("floor_button_pressed", function (floorNum) {
+            elevator.on("floor_button_pressed", function (floorNum) {
                 this.goToFloor(floorNum);
                 ensureDirection(this);
-                SortQueue.call(this);
+                sortQueue(this);
             });
 
 
-            elevators[elavatorNumber].on("stopped_at_floor", function (floorNum) {
+            elevator.on("stopped_at_floor", function (floorNum) {
                 ensureDirection(this);
-                SortQueue.call(this);
-                if (this.goingUpIndicator()){
-                    isPressedUp[floorNum]=false;
-                }else{
-                    isPressedDown[floorNum]=false;
+                sortQueue(this);
+                if (this.goingUpIndicator()) {
+                    isPressedUp[floorNum] = false;
+                } else {
+                    isPressedDown[floorNum] = false;
                 }
             });
 
             //Pick up pax on middle floors
-            elevators[elavatorNumber].on("passing_floor", function (floorNum, direction) {
+            elevator.on("passing_floor", function (floorNum, direction) {
                 if (direction === 'up' && isPressedUp[floorNum] && this.loadFactor() < 0.7) {
                     this.goToFloor(floorNum, true);
                     isPressedUp [floorNum] = false;
 
                 }
                 else if (direction === 'down' && isPressedDown[floorNum] && this.loadFactor() < 0.7 &&
-                        Math.random() < pickUpChance) {   // Yeah man, elevator can doesn't stop for you if you aren't lucky enough.
+                    Math.random() < pickUpChance) {   // Yeah man, elevator can doesn't stop for you if you aren't lucky enough.
                     this.goToFloor(floorNum, true);
                     isPressedDown [floorNum] = false;
                 }
             });
-        }
+        });
 
         // Add event of pressed button on a floor in array of pressed buttons.
-        for (floorNumber = 0; floorNumber < floors.length; floorNumber++) {
-            floors[floorNumber].on("down_button_pressed", function () {
+            floors.forEach(function(floor){
+            floor.on("down_button_pressed", function () {
                 isPressedDown[this.floorNum()] = true;
                 callFreeElevator(this.floorNum());
             });
-            floors[floorNumber].on("up_button_pressed", function () {
+            floor.on("up_button_pressed", function () {
                 isPressedUp[this.floorNum()] = true;
             });
-        }
+        });
     }
 ,
     update: function (dt, elevators, floors) {
